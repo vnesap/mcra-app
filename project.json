@@ -1,0 +1,18 @@
+{
+  "overview": "A light-themed, child-friendly virtual math classroom where teachers schedule rooms and run live sessions with a collaborative whiteboard, chat, calculator, timer, and reactions.",
+  "features": [
+    "Schedule classrooms with title and duration",
+    "Join live sessions via unique room links",
+    "Collaborative vector whiteboard with math grid",
+    "Live chat with emoji, files, and floating reactions",
+    "Globally synced countdown timer with voice alert",
+    "Video layout with teacher spotlight and stickers"
+  ],
+  "category": "education",
+  "tags": [
+    "education",
+    "classroom",
+    "collaboration"
+  ],
+  "last_updated": "2026-09-08T16:43:09.808Z"
+}
