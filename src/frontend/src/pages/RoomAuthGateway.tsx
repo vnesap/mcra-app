@@ -12,9 +12,11 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { SessionRole } from "@/lib/types";
 import { useSessionStore } from "@/store/session";
+import { Backend } from "@/backend";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { GraduationCap, UserRound } from "lucide-react";
+import { GraduationCap, UserRound, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 const ROLE_OPTIONS: { value: SessionRole; label: string; hint: string }[] = [
   {
@@ -42,18 +44,46 @@ export function RoomAuthGateway() {
   const [role, setRole] = useState<SessionRole>("student");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const backend = new Backend();
 
   const trimmedName = name.trim();
-  const canSubmit = trimmedName.length > 0;
+  const canSubmit = trimmedName.length > 0 && !isConnecting;
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit) {
+    if (!trimmedName) {
       setError("Please enter your name to join the class.");
       return;
     }
-    setSession({ role, name: trimmedName });
-    void navigate({ to: "/classroom/$roomCode", params: { roomCode } });
+
+    try {
+      setIsConnecting(true);
+      toast.loading("Authenticating secure video streams...");
+
+      // 1. Fire up your LiveKit video grid using your Render token server
+      const isTeacherRole = role === "teacher";
+      await backend.joinRoom(roomCode.toString());
+
+      // 2. Commit the name/role to your global session data layout
+      setSession({ role, name: trimmedName });
+      
+      toast.dismiss();
+      toast.success(`Welcome to class, ${trimmedName}!`);
+
+      // 3. Slide natively past the entry gate straight to the active classroom viewport
+      void navigate({ 
+        to: "/classroom/$roomCode", 
+        params: { roomCode } 
+      });
+
+    } catch (err) {
+      console.error("Video authorization failure at entry gate:", err);
+      toast.dismiss();
+      toast.error("Video servers are still booting up. Please try again in 5 seconds.");
+    } finally {
+      setIsConnecting(false);
+    }
   }
 
   return (
@@ -143,6 +173,7 @@ export function RoomAuthGateway() {
                 <Input
                   id="name"
                   value={name}
+                  disabled={isConnecting}
                   onChange={(event) => {
                     setName(event.target.value);
                     if (error) setError(null);
@@ -172,7 +203,14 @@ export function RoomAuthGateway() {
                 className="w-full rounded-2xl text-base font-bold"
                 data-ocid="room_auth.enter_button"
               >
-                Enter classroom
+                {isConnecting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="size-5 animate-spin" />
+                    Connecting...
+                  </span>
+                ) : (
+                  "Enter classroom"
+                )}
               </Button>
             </DialogFooter>
           </form>
