@@ -1,10 +1,8 @@
-import { createActor } from "@/backend";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import { useActor } from "@caffeineai/core-infrastructure";
-import { useQuery } from "@tanstack/react-query";
+import { createClient } from '@supabase/supabase-js';
+import envConfig from '../../env.json';
 import {
   ArrowUpRight,
   Camera,
@@ -20,15 +18,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const COLORS = [
-  "#6366f1",
-  "#22c55e",
-  "#f59e0b",
-  "#ef4444",
-  "#0ea5e9",
-  "#a855f7",
-  "#111827",
-];
+const supabase = createClient(envConfig.SUPABASE_URL, envConfig.SUPABASE_ANON_KEY);
+const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#0ea5e9", "#a855f7", "#111827"];
 
 type Tool = "pen" | "erase" | "rect" | "circle" | "line" | "arrow";
 
@@ -39,62 +30,24 @@ interface Stroke {
   shape: Tool;
 }
 
-/** Poll the shared whiteboard action history. */
-function useWhiteboardActions() {
-  const { actor, isFetching } = useActor(createActor);
-  return useQuery({
-    queryKey: ["whiteboard"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return actor.listWhiteboardActions();
-    },
-    enabled: !!actor && !isFetching,
-    refetchInterval: 3000,
-  });
-}
-
-/** Convert a flat [x, y, x, y, ...] array into point objects. */
-function chunkPoints(flat: number[]): { x: number; y: number }[] {
-  const points: { x: number; y: number }[] = [];
-  for (let i = 0; i + 1 < flat.length; i += 2) {
-    points.push({ x: flat[i], y: flat[i + 1] });
-  }
-  return points;
-}
-
 interface WhiteboardProps {
   onClose: () => void;
+  roomCode?: string;
 }
 
-/**
- * Vector whiteboard with a mathematical grid, drawing tools (pen, color,
- * width, erase), a full/half-screen toggle, and a Screenshot button that
- * renders and downloads the drawing as an image. Strokes can be broadcast to
- * the whole class in shared mode.
- */
-export function Whiteboard({ onClose }: WhiteboardProps) {
+export function Whiteboard({ onClose, roomCode = "global-math" }: WhiteboardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const drawingRef = useRef(false);
   const currentStrokeRef = useRef<Stroke | null>(null);
-  // Ids of remote actions already merged onto the canvas (avoids re-drawing).
-  const appliedActionIdsRef = useRef<Set<bigint>>(new Set());
-  // Flat point arrays of strokes the local user broadcast but whose echo from
-  // listWhiteboardActions has not arrived yet. Used to skip our own broadcast
-  // so it is not drawn twice.
-  const pendingLocalRef = useRef<number[][]>([]);
 
   const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(4);
   const [fullScreen, setFullScreen] = useState(false);
-  const [shared, setShared] = useState(false);
-  const { data: remoteActions = [] } = useWhiteboardActions();
+  const [shared, setShared] = useState(true); // Default to live synced mode
 
-  const { actor } = useActor(createActor);
-
-  // Draw the grid + all strokes (local and remote) onto the canvas.
   const drawAll = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -109,7 +62,6 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Mathematical grid
     ctx.clearRect(0, 0, rect.width, rect.height);
     ctx.fillStyle = "oklch(0.985 0.012 90)";
     ctx.fillRect(0, 0, rect.width, rect.height);
@@ -117,400 +69,171 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
     ctx.lineWidth = 1;
     const grid = 32;
     for (let x = 0; x <= rect.width; x += grid) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, rect.height);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, rect.height); ctx.stroke();
     }
     for (let y = 0; y <= rect.height; y += grid) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(rect.width, y);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(rect.width, y); ctx.stroke();
     }
-    // Axis emphasis
     ctx.strokeStyle = "oklch(0.8 0.02 90)";
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(rect.width / 2, 0);
-    ctx.lineTo(rect.width / 2, rect.height);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, rect.height / 2);
-    ctx.lineTo(rect.width, rect.height / 2);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rect.width / 2, 0); ctx.lineTo(rect.width / 2, rect.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, rect.height / 2); ctx.lineTo(rect.width, rect.height / 2); ctx.stroke();
 
-    // Draw strokes
     for (const stroke of strokesRef.current) {
       drawStroke(ctx, stroke);
     }
   }, []);
 
-  // Redraw whenever the panel toggles between full/half screen.
-  useEffect(() => {
-    // Re-run when the panel resizes between full/half screen.
-    void fullScreen;
-    drawAll();
-  }, [drawAll, fullScreen]);
-
-  // Replay remote actions fetched via listWhiteboardActions onto the canvas so
-  // all participants see each other's drawings. Skips the local user's own
-  // broadcast echo to avoid double-drawing.
+  // REALTIME SYNC CHANNEL: Listen for incoming remote vector drawings instantly!
   useEffect(() => {
     if (!shared) return;
-    let changed = false;
-    for (const action of remoteActions) {
-      if (appliedActionIdsRef.current.has(action.id)) continue;
-      appliedActionIdsRef.current.add(action.id);
-      if (action.kind === "clear") {
-        strokesRef.current = [];
-        pendingLocalRef.current = [];
-        changed = true;
-        continue;
-      }
-      // Skip our own broadcast echo (already drawn locally).
-      const echoIdx = pendingLocalRef.current.findIndex(
-        (p) =>
-          p.length === action.points.length &&
-          p.every((v, i) => v === action.points[i]),
-      );
-      if (echoIdx >= 0) {
-        pendingLocalRef.current.splice(echoIdx, 1);
-        continue;
-      }
-      const shape: Tool =
-        action.kind === "erase"
-          ? "erase"
-          : action.kind === "rect"
-            ? "rect"
-            : action.kind === "circle"
-              ? "circle"
-              : action.kind === "line"
-                ? "line"
-                : action.kind === "arrow"
-                  ? "arrow"
-                  : "pen";
-      const stroke: Stroke = {
-        points: chunkPoints(action.points),
-        color: action.color,
-        width: action.width,
-        shape,
-      };
-      strokesRef.current = [...strokesRef.current, stroke];
-      changed = true;
-    }
-    if (changed) drawAll();
-  }, [remoteActions, shared, drawAll]);
+    const channel = supabase.channel(`board-${roomCode}`);
 
-  function drawShape(
-    ctx: CanvasRenderingContext2D,
-    stroke: Stroke,
-    start: { x: number; y: number },
-    end: { x: number; y: number },
-  ) {
+    channel
+      .on('broadcast', { event: 'stroke' }, ({ payload }) => {
+        strokesRef.current.push(payload.stroke);
+        drawAll();
+      })
+      .on('broadcast', { event: 'clear' }, () => {
+        strokesRef.current = [];
+        drawAll();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [roomCode, shared, drawAll]);
+
+  useEffect(() => { drawAll(); }, [drawAll, fullScreen]);
+  function drawShape(ctx: CanvasRenderingContext2D, stroke: Stroke, start: { x: number; y: number }, end: { x: number; y: number }) {
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();
     switch (stroke.shape) {
-      case "rect": {
-        const x = Math.min(start.x, end.x);
-        const y = Math.min(start.y, end.y);
-        ctx.rect(x, y, Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+      case "rect":
+        ctx.rect(Math.min(start.x, end.x), Math.min(start.y, end.y), Math.abs(end.x - start.x), Math.abs(end.y - start.y));
         break;
-      }
-      case "circle": {
-        const cx = (start.x + end.x) / 2;
-        const cy = (start.y + end.y) / 2;
-        ctx.ellipse(
-          cx,
-          cy,
-          Math.abs(end.x - start.x) / 2,
-          Math.abs(end.y - start.y) / 2,
-          0,
-          0,
-          Math.PI * 2,
-        );
+      case "circle":
+        ctx.ellipse((start.x + end.x) / 2, (start.y + end.y) / 2, Math.abs(end.x - start.x) / 2, Math.abs(end.y - start.y) / 2, 0, 0, Math.PI * 2);
         break;
-      }
       case "line":
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(end.x, end.y);
+        ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y);
         break;
-      case "arrow": {
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(end.x, end.y);
+      case "arrow":
+        ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y);
         const angle = Math.atan2(end.y - start.y, end.x - start.x);
         const headLen = Math.max(12, stroke.width * 3);
         ctx.moveTo(end.x, end.y);
-        ctx.lineTo(
-          end.x - headLen * Math.cos(angle - Math.PI / 6),
-          end.y - headLen * Math.sin(angle - Math.PI / 6),
-        );
+        ctx.lineTo(end.x - headLen * Math.cos(angle - Math.PI / 6), end.y - headLen * Math.sin(angle - Math.PI / 6));
         ctx.moveTo(end.x, end.y);
-        ctx.lineTo(
-          end.x - headLen * Math.cos(angle + Math.PI / 6),
-          end.y - headLen * Math.sin(angle + Math.PI / 6),
-        );
-        break;
-      }
-      default:
+        ctx.lineTo(end.x - headLen * Math.cos(angle + Math.PI / 6), end.y - headLen * Math.sin(angle + Math.PI / 6));
         break;
     }
     ctx.stroke();
   }
 
   function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
-    if (stroke.points.length < 2) return;
+    if (stroke.points.length < 1) return;
     if (stroke.shape === "pen" || stroke.shape === "erase") {
-      ctx.strokeStyle =
-        stroke.shape === "erase" ? "oklch(0.985 0.012 90)" : stroke.color;
-      ctx.lineWidth =
-        stroke.shape === "erase" ? stroke.width * 3 : stroke.width;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+      ctx.strokeStyle = stroke.shape === "erase" ? "oklch(0.985 0.012 90)" : stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
       ctx.beginPath();
       ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-      for (let i = 1; i < stroke.points.length; i++) {
-        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
-      }
+      for (const p of stroke.points) ctx.lineTo(p.x, p.y);
       ctx.stroke();
-      return;
+    } else if (stroke.points.length >= 2) {
+      drawShape(ctx, stroke, stroke.points[0], stroke.points[stroke.points.length - 1]);
     }
-    drawShape(ctx, stroke, stroke.points[0], stroke.points[1]);
   }
 
-  function getPos(event: React.PointerEvent<HTMLCanvasElement>) {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-    };
-  }
-
-  function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
-    event.preventDefault();
-    canvasRef.current?.setPointerCapture(event.pointerId);
+  function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
     drawingRef.current = true;
-    const stroke: Stroke = {
-      points: [getPos(event)],
-      color,
-      width,
-      shape: tool,
-    };
-    currentStrokeRef.current = stroke;
-    strokesRef.current = [...strokesRef.current, stroke];
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    currentStrokeRef.current = { points: [p], color, width, shape: tool };
   }
 
-  function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
+  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     if (!drawingRef.current || !currentStrokeRef.current) return;
-    const stroke = currentStrokeRef.current;
-    if (stroke.shape === "pen" || stroke.shape === "erase") {
-      stroke.points = [...stroke.points, getPos(event)];
-      const ctx = canvasRef.current?.getContext("2d");
-      if (ctx) drawStroke(ctx, stroke);
-    } else {
-      // Shapes are defined by a start and end point; redraw the whole canvas
-      // so the preview reflects the current drag position.
-      stroke.points = [stroke.points[0], getPos(event)];
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const p = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+    if (tool === "pen" || tool === "erase") {
+      currentStrokeRef.current.points.push(p);
       drawAll();
+      drawStroke(ctx, currentStrokeRef.current);
+    } else {
+      drawAll();
+      drawShape(ctx, currentStrokeRef.current, currentStrokeRef.current.points[0], p);
     }
   }
 
-  function handlePointerUp() {
+  function handleMouseUp() {
     if (!drawingRef.current || !currentStrokeRef.current) return;
     drawingRef.current = false;
-    const stroke = currentStrokeRef.current;
-    currentStrokeRef.current = null;
-    if (shared && actor && stroke.points.length >= 2) {
-      const flat = stroke.points.flatMap((p) => [p.x, p.y]);
-      pendingLocalRef.current = [...pendingLocalRef.current, flat];
-      void actor.broadcastWhiteboardAction(
-        stroke.shape,
-        flat,
-        stroke.color,
-        stroke.width,
-      );
-    }
-  }
+    strokesRef.current.push(currentStrokeRef.current);
 
-  function handleClear() {
-    strokesRef.current = [];
-    pendingLocalRef.current = [];
-    if (shared && actor) {
-      void actor.broadcastWhiteboardAction("clear", [], color, width);
+    // BROADCAST ACTIONS OVER REALTIME INTERNET MATRICES INSTANTLY
+    if (shared) {
+      void supabase.channel(`board-${roomCode}`).send({
+        type: 'broadcast',
+        event: 'stroke',
+        payload: { stroke: currentStrokeRef.current }
+      });
     }
-    // Force a redraw
+    currentStrokeRef.current = null;
     drawAll();
   }
 
-  function handleScreenshot() {
+  function handleClearAll() {
+    strokesRef.current = [];
+    if (shared) {
+      void supabase.channel(`board-${roomCode}`).send({ type: 'broadcast', event: 'clear', payload: {} });
+    }
+    drawAll();
+  }
+
+  function takeScreenshot() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement("a");
-    link.download = `whiteboard-${Date.now()}.png`;
-    link.href = canvas.toDataURL("image/png");
+    link.download = `math-lesson-${Date.now()}.png`;
+    link.href = canvas.toDataURL();
     link.click();
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "absolute z-20 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl",
-        fullScreen ? "inset-2" : "inset-x-6 top-16 bottom-24",
-      )}
-      data-ocid="classroom.whiteboard.panel"
-    >
-      {/* Toolbar */}
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-3">
-        <span className="font-display text-sm font-bold text-foreground">
-          Whiteboard
-        </span>
-        <Tabs value={tool} onValueChange={(v) => setTool(v as Tool)}>
-          <TabsList className="h-8">
-            <TabsTrigger value="pen" className="gap-1 text-xs">
-              <Pen className="size-3.5" /> Pen
-            </TabsTrigger>
-            <TabsTrigger value="erase" className="gap-1 text-xs">
-              <Eraser className="size-3.5" /> Erase
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <div className="flex items-center gap-1">
-          {(
-            [
-              ["rect", Square],
-              ["circle", Circle],
-              ["line", Minus],
-              ["arrow", ArrowUpRight],
-            ] as const
-          ).map(([value, Icon]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setTool(value)}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                tool === value
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-transparent",
-              )}
-              aria-label={`${value} tool`}
-              aria-pressed={tool === value}
-              data-ocid="classroom.whiteboard.shape_button"
-            >
-              <Icon className="size-4" />
-            </button>
-          ))}
+    <div ref={containerRef} className={cn("absolute inset-0 z-40 flex flex-col bg-background", fullScreen ? "fixed inset-0 h-screen w-screen" : "h-full w-full")}>
+      <div className="flex items-center justify-between border-b bg-card p-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Button variant={tool === "pen" ? "default" : "outline"} size="icon" onClick={() => setTool("pen")}><Pen className="size-4" /></Button>
+          <Button variant={tool === "erase" ? "default" : "outline"} size="icon" onClick={() => setTool("erase")}><Eraser className="size-4" /></Button>
+          <Button variant={tool === "rect" ? "default" : "outline"} size="icon" onClick={() => setTool("rect")}><Square className="size-4" /></Button>
+          <Button variant={tool === "circle" ? "default" : "outline"} size="icon" onClick={() => setTool("circle")}><Circle className="size-4" /></Button>
+          <Button variant={tool === "line" ? "default" : "outline"} size="icon" onClick={() => setTool("line")}><Minus className="size-4" /></Button>
+          <Button variant={tool === "arrow" ? "default" : "outline"} size="icon" onClick={() => setTool("arrow")}><ArrowUpRight className="size-4" /></Button>
         </div>
 
-        <div className="flex items-center gap-1">
-          {COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setColor(c)}
-              className={cn(
-                "size-5 rounded-full border-2 transition-transform hover:scale-110",
-                color === c ? "border-foreground" : "border-transparent",
-              )}
-              style={{ backgroundColor: c }}
-              aria-label={`Select color ${c}`}
-              data-ocid="classroom.whiteboard.color_button"
-            />
-          ))}
-        </div>
-
-        <div className="flex w-28 items-center gap-2">
-          <span className="text-xs text-muted-foreground">Width</span>
-          <Slider
-            value={[width]}
-            min={1}
-            max={20}
-            onValueChange={(v) => setWidth(v[0])}
-            aria-label="Stroke width"
-            data-ocid="classroom.whiteboard.width_slider"
-          />
-        </div>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant={shared ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setShared((v) => !v)}
-            data-ocid="classroom.whiteboard.shared_toggle"
-          >
-            {shared ? "Shared" : "Local"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleScreenshot}
-            data-ocid="classroom.whiteboard.screenshot_button"
-          >
-            <Camera className="size-4" /> Screenshot
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setFullScreen((v) => !v)}
-            aria-label={fullScreen ? "Half screen" : "Full screen"}
-            data-ocid="classroom.whiteboard.fullscreen_toggle"
-          >
-            {fullScreen ? (
-              <Minimize2 className="size-4" />
-            ) : (
-              <Maximize2 className="size-4" />
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={handleClear}
-            aria-label="Clear whiteboard"
-            data-ocid="classroom.whiteboard.clear_button"
-          >
-            <Trash2 className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={onClose}
-            aria-label="Close whiteboard"
-            data-ocid="classroom.whiteboard.close_button"
-          >
-            <X className="size-4" />
-          </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            {COLORS.map((c) => (
+              <button key={c} onClick={() => setColor(c)} className={cn("size-6 rounded-full border", color === c ? "ring-2 ring-primary scale-110" : "")} style={{ backgroundColor: c }} />
+            ))}
+          </div>
+          <Slider value={[width]} onValueChange={(v) => setWidth(v[0])} min={1} max={20} step={1} className="w-24" />
+          <Button variant="outline" size="icon" onClick={takeScreenshot}><Camera className="size-4" /></Button>
+          <Button variant="outline" size="icon" onClick={handleClearAll}><Trash2 className="size-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setFullScreen(!fullScreen)}>{fullScreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}</Button>
+          <Button variant="ghost" size="icon" onClick={onClose}><X className="size-4" /></Button>
         </div>
       </div>
-
-      {/* Canvas */}
-      <div className="relative min-h-0 flex-1">
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 h-full w-full touch-none cursor-crosshair"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          data-ocid="classroom.whiteboard.canvas_target"
-        />
-        {remoteActions.length > 0 && shared ? (
-          <p className="absolute bottom-2 left-2 rounded-full bg-black/40 px-2 py-0.5 text-[10px] text-white">
-            {remoteActions.length} shared strokes
-          </p>
-        ) : null}
-      </div>
+      <canvas ref={canvasRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} className="flex-1 cursor-crosshair touch-none" />
     </div>
   );
 }
