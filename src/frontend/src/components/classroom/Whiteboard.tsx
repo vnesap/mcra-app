@@ -6,11 +6,15 @@ import { cn } from "@/lib/utils";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowUpRight,
   Camera,
+  Circle,
   Eraser,
   Maximize2,
   Minimize2,
+  Minus,
   Pen,
+  Square,
   Trash2,
   X,
 } from "lucide-react";
@@ -26,11 +30,13 @@ const COLORS = [
   "#111827",
 ];
 
+type Tool = "pen" | "erase" | "rect" | "circle" | "line" | "arrow";
+
 interface Stroke {
   points: { x: number; y: number }[];
   color: string;
   width: number;
-  tool: "pen" | "erase";
+  shape: Tool;
 }
 
 /** Poll the shared whiteboard action history. */
@@ -79,7 +85,7 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
   // so it is not drawn twice.
   const pendingLocalRef = useRef<number[][]>([]);
 
-  const [tool, setTool] = useState<"pen" | "erase">("pen");
+  const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(4);
   const [fullScreen, setFullScreen] = useState(false);
@@ -172,11 +178,23 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
         pendingLocalRef.current.splice(echoIdx, 1);
         continue;
       }
+      const shape: Tool =
+        action.kind === "erase"
+          ? "erase"
+          : action.kind === "rect"
+            ? "rect"
+            : action.kind === "circle"
+              ? "circle"
+              : action.kind === "line"
+                ? "line"
+                : action.kind === "arrow"
+                  ? "arrow"
+                  : "pen";
       const stroke: Stroke = {
         points: chunkPoints(action.points),
         color: action.color,
         width: action.width,
-        tool: action.kind === "erase" ? "erase" : "pen",
+        shape,
       };
       strokesRef.current = [...strokesRef.current, stroke];
       changed = true;
@@ -184,19 +202,83 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
     if (changed) drawAll();
   }, [remoteActions, shared, drawAll]);
 
-  function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
-    if (stroke.points.length < 2) return;
-    ctx.strokeStyle =
-      stroke.tool === "erase" ? "oklch(0.985 0.012 90)" : stroke.color;
-    ctx.lineWidth = stroke.tool === "erase" ? stroke.width * 3 : stroke.width;
+  function drawShape(
+    ctx: CanvasRenderingContext2D,
+    stroke: Stroke,
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+  ) {
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.width;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();
-    ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-    for (let i = 1; i < stroke.points.length; i++) {
-      ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+    switch (stroke.shape) {
+      case "rect": {
+        const x = Math.min(start.x, end.x);
+        const y = Math.min(start.y, end.y);
+        ctx.rect(x, y, Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+        break;
+      }
+      case "circle": {
+        const cx = (start.x + end.x) / 2;
+        const cy = (start.y + end.y) / 2;
+        ctx.ellipse(
+          cx,
+          cy,
+          Math.abs(end.x - start.x) / 2,
+          Math.abs(end.y - start.y) / 2,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        break;
+      }
+      case "line":
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        break;
+      case "arrow": {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        const angle = Math.atan2(end.y - start.y, end.x - start.x);
+        const headLen = Math.max(12, stroke.width * 3);
+        ctx.moveTo(end.x, end.y);
+        ctx.lineTo(
+          end.x - headLen * Math.cos(angle - Math.PI / 6),
+          end.y - headLen * Math.sin(angle - Math.PI / 6),
+        );
+        ctx.moveTo(end.x, end.y);
+        ctx.lineTo(
+          end.x - headLen * Math.cos(angle + Math.PI / 6),
+          end.y - headLen * Math.sin(angle + Math.PI / 6),
+        );
+        break;
+      }
+      default:
+        break;
     }
     ctx.stroke();
+  }
+
+  function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
+    if (stroke.points.length < 2) return;
+    if (stroke.shape === "pen" || stroke.shape === "erase") {
+      ctx.strokeStyle =
+        stroke.shape === "erase" ? "oklch(0.985 0.012 90)" : stroke.color;
+      ctx.lineWidth =
+        stroke.shape === "erase" ? stroke.width * 3 : stroke.width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i++) {
+        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      }
+      ctx.stroke();
+      return;
+    }
+    drawShape(ctx, stroke, stroke.points[0], stroke.points[1]);
   }
 
   function getPos(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -215,7 +297,7 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
       points: [getPos(event)],
       color,
       width,
-      tool,
+      shape: tool,
     };
     currentStrokeRef.current = stroke;
     strokesRef.current = [...strokesRef.current, stroke];
@@ -224,9 +306,16 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
     if (!drawingRef.current || !currentStrokeRef.current) return;
     const stroke = currentStrokeRef.current;
-    stroke.points = [...stroke.points, getPos(event)];
-    const ctx = canvasRef.current?.getContext("2d");
-    if (ctx) drawStroke(ctx, stroke);
+    if (stroke.shape === "pen" || stroke.shape === "erase") {
+      stroke.points = [...stroke.points, getPos(event)];
+      const ctx = canvasRef.current?.getContext("2d");
+      if (ctx) drawStroke(ctx, stroke);
+    } else {
+      // Shapes are defined by a start and end point; redraw the whole canvas
+      // so the preview reflects the current drag position.
+      stroke.points = [stroke.points[0], getPos(event)];
+      drawAll();
+    }
   }
 
   function handlePointerUp() {
@@ -238,7 +327,7 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
       const flat = stroke.points.flatMap((p) => [p.x, p.y]);
       pendingLocalRef.current = [...pendingLocalRef.current, flat];
       void actor.broadcastWhiteboardAction(
-        stroke.tool,
+        stroke.shape,
         flat,
         stroke.color,
         stroke.width,
@@ -279,7 +368,7 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
         <span className="font-display text-sm font-bold text-foreground">
           Whiteboard
         </span>
-        <Tabs value={tool} onValueChange={(v) => setTool(v as "pen" | "erase")}>
+        <Tabs value={tool} onValueChange={(v) => setTool(v as Tool)}>
           <TabsList className="h-8">
             <TabsTrigger value="pen" className="gap-1 text-xs">
               <Pen className="size-3.5" /> Pen
@@ -289,6 +378,34 @@ export function Whiteboard({ onClose }: WhiteboardProps) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        <div className="flex items-center gap-1">
+          {(
+            [
+              ["rect", Square],
+              ["circle", Circle],
+              ["line", Minus],
+              ["arrow", ArrowUpRight],
+            ] as const
+          ).map(([value, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTool(value)}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                tool === value
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-transparent",
+              )}
+              aria-label={`${value} tool`}
+              aria-pressed={tool === value}
+              data-ocid="classroom.whiteboard.shape_button"
+            >
+              <Icon className="size-4" />
+            </button>
+          ))}
+        </div>
 
         <div className="flex items-center gap-1">
           {COLORS.map((c) => (

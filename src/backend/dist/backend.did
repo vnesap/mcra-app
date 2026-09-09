@@ -40,6 +40,19 @@ type SpotlightState =
    active: bool;
    studentName: text;
  };
+type Session = 
+ record {
+   createdAt: Timestamp;
+   email: Email;
+   name: text;
+   role: Role;
+   token: text;
+ };
+type Role = 
+ variant {
+   student;
+   teacher;
+ };
 type Result__1 = 
  variant {
    err: Error;
@@ -56,6 +69,12 @@ type ReactionEvent =
    senderName: text;
    symbol: text;
    timestamp: int;
+ };
+type Password = text;
+type LoginResult = 
+ variant {
+   invalidCredentials;
+   ok: Session;
  };
 type FileRef = 
  record {
@@ -86,6 +105,7 @@ type Error =
    UnknownNonce;
    UntrustedSsoSource: record {domain: text;};
  };
+type Email = text;
 type ClassroomView = 
  record {
    createdAt: Timestamp;
@@ -130,6 +150,7 @@ service : {
   execute: (qJson: text) -> (Result) query;
   getApiDoc: () -> (text) query;
   getCallerUserRole: () -> (UserRole) query;
+  getCurrentSession: (token: text) -> (opt Session) query;
   getOnline: (roomCode: text) -> (vec principal) query;
   getRoomLink: (id: ClassroomId) -> (opt text) query;
   getSessionEnded: (roomCode: text) -> (bool) query;
@@ -143,6 +164,8 @@ service : {
   listClassrooms: () -> (vec ClassroomView) query;
   listReactions: () -> (vec ReactionEvent) query;
   listWhiteboardActions: () -> (vec WhiteboardAction) query;
+  login: (email: Email, password: Password) -> (LoginResult);
+  logout: (token: text) -> ();
   schema: () -> (text) query;
   searchClassrooms: (keyword: text, date: opt Timestamp) ->
    (vec ClassroomView) query;

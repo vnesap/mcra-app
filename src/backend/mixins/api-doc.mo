@@ -81,6 +81,20 @@ spotlight, and sticker state. It also exposes the queryable data through OQL
 - `getSticker() : async StickerState`
   Returns the current sticker state (`studentName`, `symbol`).
 
+### Login credentials (auth)
+
+- `login(email : Text, password : Text) : async LoginResult`
+  Validates the email/password against the stored demo accounts. On success
+  returns `#ok(Session)` with a fresh session token; on a wrong email or
+  password returns `#invalidCredentials`. Registration is out of scope, so the
+  only valid credentials are the seeded demo accounts (see Authentication
+  below).
+- `getCurrentSession(token : Text) : async ?Session`
+  Returns the active session for a token, or `null` if the token is unknown or
+  the session has been ended.
+- `logout(token : Text) : async ()`
+  Ends (removes) the session identified by token. No-op if the token is unknown.
+
 ### Authorization (Internet Identity)
 
 - `_internet_identity_sign_in_start() : async Blob`
@@ -110,6 +124,27 @@ spotlight, and sticker state. It also exposes the queryable data through OQL
   This document.
 
 ## Authentication and authorization
+
+The app supports two authentication paths: explicit email/password login
+credentials and Internet Identity.
+
+### Login credentials
+
+The backend seeds two demo accounts (registration and password reset are out of
+scope):
+
+- `teacher@classroom.app` / `teacher123` — role `#teacher`, name `Ms. Rivera`
+- `student@classroom.app` / `student123` — role `#student`, name `Alex`
+
+`login(email, password)` validates against these accounts and, on success,
+creates a session and returns it with a unique `token` of the form
+`session-<n>`. The frontend persists that token and calls
+`getCurrentSession(token)` to restore the session across a refresh. `logout`
+ends the session. The session token is the only credential the frontend needs
+to hold after login; it is not tied to the caller's Internet Computer
+principal.
+
+### Internet Identity
 
 The app uses Internet Identity for authentication. The frontend pins an Internet
 Identity derivation origin, published at `/.well-known/ii-derivation-origin`
@@ -156,6 +191,10 @@ role-management endpoints above are gated.
 - `SpotlightState` is `{ active : Bool; studentName : Text }`.
 - `StickerState` is `{ studentName : Text; symbol : Text }`.
 - `ReactionEvent` is `{ id : Nat; senderName : Text; symbol : Text; timestamp : Int }`.
+- `Session` is `{ token : Text; email : Text; name : Text; role : Role; createdAt : Int }`.
+  `token` is a `Text` of the form `session-<n>`; `createdAt` is an `Int` in
+  nanoseconds since the Unix epoch; `role` is `#teacher` or `#student`.
+- `LoginResult` is a variant: `#ok(Session)` or `#invalidCredentials`.
 
 ## Lifecycle and polling
 
@@ -183,6 +222,9 @@ role-management endpoints above are gated.
 - `joinRoom` and `leaveRoom` are idempotent: adding an already-online caller or
   removing an absent caller is a no-op.
 - `deleteClassroom` is idempotent: deleting a non-existent id returns `false`.
+- `login` is not idempotent: each successful call creates a new session with a
+  fresh token, so retrying a login yields multiple active sessions for the same
+  account. `logout` and `getCurrentSession` are idempotent.
 
 ## Errors, traps, and gotchas
 
@@ -198,8 +240,13 @@ role-management endpoints above are gated.
 - `deleteClassroom` does not clean up that room's presence records.
 - OQL `schema()` / `execute()` expose the queryable entities with per-entity
   authorization: `classroom` is public (readable by anyone, including
-  anonymous), while `presence`, `chatMessage`, `whiteboardAction`, and
-  `reaction` are controller-only (readable by the platform controller, which
-  is how the Data Intelligence agent answers questions over them)."
+  anonymous), while `presence`, `chatMessage`, `whiteboardAction`, `reaction`,
+  `sessionEnded`, `account`, and `session` are controller-only (readable by the
+  platform controller, which is how the Data Intelligence agent answers
+  questions over them). The auth tables are additionally hardened: the
+  `account` entity exposes only `email`, `name`, and `role` — the `password`
+  column is never projected into the schema — and the `session` entity exposes
+  `token`, `email`, `name`, `role`, and `createdAt` but is controller-only, so
+  session tokens are never readable by end users."
   };
 };

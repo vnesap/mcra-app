@@ -101,6 +101,13 @@ export interface FileRef {
     size: bigint;
     mimeType: string;
 }
+export interface Session {
+    token: string;
+    name: string;
+    createdAt: Timestamp;
+    role: Role;
+    email: Email;
+}
 export interface Result {
     hasMore: boolean;
     rows: Array<Array<Cell>>;
@@ -109,6 +116,7 @@ export interface Cell {
     value: Value;
     name: string;
 }
+export type Password = string;
 export interface ChatMessage {
     id: bigint;
     file?: FileRef;
@@ -117,6 +125,13 @@ export interface ChatMessage {
     timestamp: bigint;
     senderName: string;
 }
+export type LoginResult = {
+    __kind__: "ok";
+    ok: Session;
+} | {
+    __kind__: "invalidCredentials";
+    invalidCredentials: null;
+};
 export type ClassroomId = bigint;
 export type Value = {
     __kind__: "int";
@@ -137,10 +152,15 @@ export type Value = {
     __kind__: "text";
     text: string;
 };
+export type Email = string;
 export enum ClassroomDuration {
     min30 = "min30",
     hour1 = "hour1",
     hour1half = "hour1half"
+}
+export enum Role {
+    teacher = "teacher",
+    student = "student"
 }
 export enum UserRole {
     admin = "admin",
@@ -156,6 +176,7 @@ export interface backendInterface {
     execute(qJson: string): Promise<Result>;
     getApiDoc(): Promise<string>;
     getCallerUserRole(): Promise<UserRole>;
+    getCurrentSession(token: string): Promise<Session | null>;
     getOnline(roomCode: string): Promise<Array<Principal>>;
     getRoomLink(id: ClassroomId): Promise<string | null>;
     getSessionEnded(roomCode: string): Promise<boolean>;
@@ -169,6 +190,8 @@ export interface backendInterface {
     listClassrooms(): Promise<Array<ClassroomView>>;
     listReactions(): Promise<Array<ReactionEvent>>;
     listWhiteboardActions(): Promise<Array<WhiteboardAction>>;
+    login(email: Email, password: Password): Promise<LoginResult>;
+    logout(token: string): Promise<void>;
     schema(): Promise<string>;
     searchClassrooms(keyword: string, date: Timestamp | null): Promise<Array<ClassroomView>>;
     sendChatMessage(text: string, file: FileRef | null): Promise<bigint>;

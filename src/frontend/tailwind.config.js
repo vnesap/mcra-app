@@ -113,6 +113,10 @@ export default {
           "0%, 100%": { opacity: "1", transform: "scale(1)" },
           "50%": { opacity: "0.3", transform: "scale(1.08)" },
         },
+        "pop-in": {
+          "0%": { opacity: "0", transform: "translateY(12px) scale(0.97)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -121,6 +125,7 @@ export default {
         "reaction-pop": "reaction-pop 3s ease-in-out forwards",
         "bob": "bob 2.5s ease-in-out infinite",
         "flash": "flash 0.6s ease-in-out infinite",
+        "pop-in": "pop-in 0.35s cubic-bezier(0.4, 0, 0.2, 1) both",
       },
     },
   },

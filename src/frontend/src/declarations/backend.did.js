@@ -63,6 +63,15 @@ export const Result = IDL.Record({
   'hasMore' : IDL.Bool,
   'rows' : IDL.Vec(IDL.Vec(Cell)),
 });
+export const Role = IDL.Variant({ 'teacher' : IDL.Null, 'student' : IDL.Null });
+export const Email = IDL.Text;
+export const Session = IDL.Record({
+  'token' : IDL.Text,
+  'name' : IDL.Text,
+  'createdAt' : Timestamp,
+  'role' : Role,
+  'email' : Email,
+});
 export const SpotlightState = IDL.Record({
   'active' : IDL.Bool,
   'studentName' : IDL.Text,
@@ -105,6 +114,11 @@ export const WhiteboardAction = IDL.Record({
   'width' : IDL.Float64,
   'points' : IDL.Vec(IDL.Float64),
 });
+export const Password = IDL.Text;
+export const LoginResult = IDL.Variant({
+  'ok' : Session,
+  'invalidCredentials' : IDL.Null,
+});
 
 export const idlService = IDL.Service({
   '_initialize_access_control' : IDL.Func([], [], []),
@@ -126,6 +140,7 @@ export const idlService = IDL.Service({
   'execute' : IDL.Func([IDL.Text], [Result], ['query']),
   'getApiDoc' : IDL.Func([], [IDL.Text], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getCurrentSession' : IDL.Func([IDL.Text], [IDL.Opt(Session)], ['query']),
   'getOnline' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Principal)], ['query']),
   'getRoomLink' : IDL.Func([ClassroomId], [IDL.Opt(IDL.Text)], ['query']),
   'getSessionEnded' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
@@ -143,6 +158,8 @@ export const idlService = IDL.Service({
       [IDL.Vec(WhiteboardAction)],
       ['query'],
     ),
+  'login' : IDL.Func([Email, Password], [LoginResult], []),
+  'logout' : IDL.Func([IDL.Text], [], []),
   'schema' : IDL.Func([], [IDL.Text], ['query']),
   'searchClassrooms' : IDL.Func(
       [IDL.Text, IDL.Opt(Timestamp)],
@@ -214,6 +231,15 @@ export const idlFactory = ({ IDL }) => {
     'hasMore' : IDL.Bool,
     'rows' : IDL.Vec(IDL.Vec(Cell)),
   });
+  const Role = IDL.Variant({ 'teacher' : IDL.Null, 'student' : IDL.Null });
+  const Email = IDL.Text;
+  const Session = IDL.Record({
+    'token' : IDL.Text,
+    'name' : IDL.Text,
+    'createdAt' : Timestamp,
+    'role' : Role,
+    'email' : Email,
+  });
   const SpotlightState = IDL.Record({
     'active' : IDL.Bool,
     'studentName' : IDL.Text,
@@ -256,6 +282,11 @@ export const idlFactory = ({ IDL }) => {
     'width' : IDL.Float64,
     'points' : IDL.Vec(IDL.Float64),
   });
+  const Password = IDL.Text;
+  const LoginResult = IDL.Variant({
+    'ok' : Session,
+    'invalidCredentials' : IDL.Null,
+  });
   
   return IDL.Service({
     '_initialize_access_control' : IDL.Func([], [], []),
@@ -277,6 +308,7 @@ export const idlFactory = ({ IDL }) => {
     'execute' : IDL.Func([IDL.Text], [Result], ['query']),
     'getApiDoc' : IDL.Func([], [IDL.Text], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getCurrentSession' : IDL.Func([IDL.Text], [IDL.Opt(Session)], ['query']),
     'getOnline' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Principal)], ['query']),
     'getRoomLink' : IDL.Func([ClassroomId], [IDL.Opt(IDL.Text)], ['query']),
     'getSessionEnded' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
@@ -294,6 +326,8 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(WhiteboardAction)],
         ['query'],
       ),
+    'login' : IDL.Func([Email, Password], [LoginResult], []),
+    'logout' : IDL.Func([IDL.Text], [], []),
     'schema' : IDL.Func([], [IDL.Text], ['query']),
     'searchClassrooms' : IDL.Func(
         [IDL.Text, IDL.Opt(Timestamp)],

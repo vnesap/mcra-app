@@ -31,6 +31,7 @@ export interface ClassroomView {
   'createdAt' : Timestamp,
   'roomCode' : string,
 }
+export type Email = string;
 export type Error = { 'FrontendOriginsNotConfigured' : null } |
   {
     'MixedSsoSources' : {
@@ -52,6 +53,9 @@ export interface FileRef {
   'size' : bigint,
   'mimeType' : string,
 }
+export type LoginResult = { 'ok' : Session } |
+  { 'invalidCredentials' : null };
+export type Password = string;
 export interface ReactionEvent {
   'id' : bigint,
   'timestamp' : bigint,
@@ -61,6 +65,15 @@ export interface ReactionEvent {
 export interface Result { 'hasMore' : boolean, 'rows' : Array<Array<Cell>> }
 export type Result__1 = { 'ok' : null } |
   { 'err' : Error };
+export type Role = { 'teacher' : null } |
+  { 'student' : null };
+export interface Session {
+  'token' : string,
+  'name' : string,
+  'createdAt' : Timestamp,
+  'role' : Role,
+  'email' : Email,
+}
 export interface SpotlightState { 'active' : boolean, 'studentName' : string }
 export interface StickerState { 'studentName' : string, 'symbol' : string }
 export interface TimerState {
@@ -102,6 +115,7 @@ export interface _SERVICE {
   'execute' : ActorMethod<[string], Result>,
   'getApiDoc' : ActorMethod<[], string>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getCurrentSession' : ActorMethod<[string], [] | [Session]>,
   'getOnline' : ActorMethod<[string], Array<Principal>>,
   'getRoomLink' : ActorMethod<[ClassroomId], [] | [string]>,
   'getSessionEnded' : ActorMethod<[string], boolean>,
@@ -115,6 +129,8 @@ export interface _SERVICE {
   'listClassrooms' : ActorMethod<[], Array<ClassroomView>>,
   'listReactions' : ActorMethod<[], Array<ReactionEvent>>,
   'listWhiteboardActions' : ActorMethod<[], Array<WhiteboardAction>>,
+  'login' : ActorMethod<[Email, Password], LoginResult>,
+  'logout' : ActorMethod<[string], undefined>,
   'schema' : ActorMethod<[], string>,
   'searchClassrooms' : ActorMethod<
     [string, [] | [Timestamp]],

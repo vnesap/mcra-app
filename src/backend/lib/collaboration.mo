@@ -11,8 +11,8 @@ module {
     text : Text,
     file : ?Types.FileRef,
   ) : Nat {
-    let id = nextId.next;
     nextId.next += 1;
+    let id = nextId.next;
     messages.add({
       id;
       senderName;
@@ -39,8 +39,8 @@ module {
     color : Text,
     width : Float,
   ) {
-    let id = nextId.next;
     nextId.next += 1;
+    let id = nextId.next;
     actions.add({
       id;
       senderName;
@@ -78,8 +78,8 @@ module {
     senderName : Text,
     symbol : Text,
   ) : Nat {
-    let id = nextId.next;
     nextId.next += 1;
+    let id = nextId.next;
     events.add({
       id;
       senderName;

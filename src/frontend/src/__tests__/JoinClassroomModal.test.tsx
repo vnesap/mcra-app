@@ -31,7 +31,7 @@ function renderRow(classroom = sampleClassroom()) {
   );
 }
 
-describe("ClassroomRow join-from-list", () => {
+describe("ClassroomRow share room link", () => {
   afterEach(() => cleanup());
 
   beforeEach(() => {
@@ -43,31 +43,21 @@ describe("ClassroomRow join-from-list", () => {
     useActorMock.mockReturnValue({ actor, isFetching: false });
   });
 
-  it("shows a Join action on the listed room", () => {
-    renderRow();
-
-    expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
-  });
-
-  it("navigates to that room's classroom page when Join is clicked", async () => {
-    const navigate = vi.fn();
-    useNavigateMock.mockReturnValue(navigate);
+  it("copies a classroom link that lands on the classroom page", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
 
     renderRow(sampleClassroom({ roomCode: "ABC123" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Share Room Link" }),
+    );
 
-    expect(navigate).toHaveBeenCalledWith({
-      to: "/classroom/$roomCode",
-      params: { roomCode: "ABC123" },
-    });
-  });
-
-  it("does not require a room code entry field to join", () => {
-    renderRow();
-
-    expect(
-      screen.queryByLabelText("Classroom room code"),
-    ).not.toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}/classroom/ABC123`,
+    );
   });
 });

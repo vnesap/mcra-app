@@ -1,6 +1,6 @@
 import { TimerOverlay } from "@/components/classroom/TimerOverlay";
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useTimerMock = vi.hoisted(() => vi.fn());
 const useSetTimerMock = vi.hoisted(() => vi.fn());
@@ -29,6 +29,8 @@ function timerState(remainingSec: number, running = true) {
 }
 
 describe("TimerOverlay", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     useTimerMock.mockReset();
     useSetTimerMock.mockReset();
@@ -42,13 +44,14 @@ describe("TimerOverlay", () => {
       SpeechSynthesisUtteranceMock;
   });
 
-  it("stays hidden while the timer has more than 3 seconds left", () => {
+  it("shows the small hover countdown while the timer is running", () => {
     useTimerMock.mockReturnValue({ data: timerState(60) });
     render(<TimerOverlay open={false} onClose={vi.fn()} isTeacher={false} />);
-    expect(screen.queryByTestId("classroom.timer.countdown")).toBeNull();
+    expect(screen.getByTestId("classroom.timer.countdown")).toBeInTheDocument();
+    expect(screen.getByText("remaining")).toBeInTheDocument();
   });
 
-  it("flashes the countdown into view in the final 3 seconds", () => {
+  it("shows the 'seconds left!' label in the final 3 seconds", () => {
     useTimerMock.mockReturnValue({ data: timerState(2) });
     render(<TimerOverlay open={false} onClose={vi.fn()} isTeacher={false} />);
     expect(screen.getByTestId("classroom.timer.countdown")).toBeInTheDocument();
@@ -69,5 +72,25 @@ describe("TimerOverlay", () => {
     expect(
       screen.getByRole("button", { name: "Set timer" }),
     ).toBeInTheDocument();
+  });
+
+  it("speaks 'Time is up!' once per timer cycle and again for a new timer", () => {
+    // First timer runs down to zero and announces once.
+    useTimerMock.mockReturnValue({ data: timerState(0) });
+    const { rerender } = render(
+      <TimerOverlay open={false} onClose={vi.fn()} isTeacher={false} />,
+    );
+    expect(speakMock).toHaveBeenCalledTimes(1);
+
+    // A new timer starts (more than 3 seconds left), which resets the guard.
+    useTimerMock.mockReturnValue({ data: timerState(60) });
+    rerender(<TimerOverlay open={false} onClose={vi.fn()} isTeacher={false} />);
+    expect(speakMock).toHaveBeenCalledTimes(1);
+
+    // The new timer reaches zero and announces again.
+    useTimerMock.mockReturnValue({ data: timerState(0) });
+    rerender(<TimerOverlay open={false} onClose={vi.fn()} isTeacher={false} />);
+    expect(speakMock).toHaveBeenCalledTimes(2);
+    expect(speakMock.mock.calls[1][0].text).toBe("Time is up!");
   });
 });

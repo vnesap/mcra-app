@@ -9,13 +9,16 @@ import type { SessionRole } from "@/lib/types";
 import {
   Calculator as CalculatorIcon,
   DoorOpen,
+  Download,
   MessageSquare,
   PanelRightClose,
   Presentation,
   Square,
   Timer,
+  Upload,
   Users,
 } from "lucide-react";
+import { useRef } from "react";
 
 interface HeaderBarProps {
   role: SessionRole | null;
@@ -23,11 +26,15 @@ interface HeaderBarProps {
   whiteboardOpen: boolean;
   calculatorOpen: boolean;
   chatOpen: boolean;
+  canDownload: boolean;
+  uploading: boolean;
   onToggleWhiteboard: () => void;
   onToggleCalculator: () => void;
   onToggleChat: () => void;
   onOpenTimer: () => void;
   onOpenRoster: () => void;
+  onUploadFile: (file: File) => void;
+  onDownloadFile: () => void;
   onLeave: () => void;
   onEndSession: () => void;
 }
@@ -40,15 +47,26 @@ export function HeaderBar({
   whiteboardOpen,
   calculatorOpen,
   chatOpen,
+  canDownload,
+  uploading,
   onToggleWhiteboard,
   onToggleCalculator,
   onToggleChat,
   onOpenTimer,
   onOpenRoster,
+  onUploadFile,
+  onDownloadFile,
   onLeave,
   onEndSession,
 }: HeaderBarProps) {
   const isTeacher = role === "teacher";
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handlePickFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) onUploadFile(file);
+    event.target.value = "";
+  }
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-3 shadow-subtle">
@@ -99,6 +117,55 @@ export function HeaderBar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>Open the scientific calculator</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              data-ocid="classroom.header.upload_button"
+            >
+              <Upload className="size-4" />
+              <span className="hidden sm:inline">
+                {uploading ? "Uploading…" : "Upload"}
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {uploading ? "Uploading file…" : "Attach a file to the class"}
+          </TooltipContent>
+        </Tooltip>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handlePickFile}
+          data-ocid="classroom.header.upload_input"
+        />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={!canDownload}
+              onClick={onDownloadFile}
+              data-ocid="classroom.header.download_button"
+            >
+              <Download className="size-4" />
+              <span className="hidden sm:inline">Download</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {canDownload
+              ? "Download the most recently uploaded file"
+              : "No file uploaded yet"}
+          </TooltipContent>
         </Tooltip>
 
         <Tooltip>

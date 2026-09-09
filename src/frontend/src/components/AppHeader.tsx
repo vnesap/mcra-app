@@ -31,14 +31,19 @@ export function AppHeader() {
               {name} · {role === "teacher" ? "Teacher" : "Student"}
             </span>
           ) : (
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              data-ocid="app_header.lobby_button"
-            >
-              <Link to="/">Lobby</Link>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                data-ocid="app_header.lobby_button"
+              >
+                <Link to="/">Lobby</Link>
+              </Button>
+              <Button asChild size="sm" data-ocid="app_header.login_link">
+                <Link to="/login">Sign in</Link>
+              </Button>
+            </div>
           )}
         </div>
       </div>

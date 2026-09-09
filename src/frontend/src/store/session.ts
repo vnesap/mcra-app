@@ -14,7 +14,8 @@ interface SessionState {
 /**
  * Session-scoped identity for the current participant. Role and name persist
  * for the session via localStorage so they survive a page reload while the
- * user is in a live classroom.
+ * user is in a live classroom. Sign-in requires only a name and role — no
+ * email or password.
  */
 export const useSessionStore = create<SessionState>()(
   persist(

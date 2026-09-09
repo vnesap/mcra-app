@@ -73,4 +73,41 @@ describe("Whiteboard", () => {
       screen.getByTestId("classroom.whiteboard.fullscreen_toggle"),
     ).toHaveAttribute("aria-label", "Half screen");
   });
+
+  it("renders the color palette and stroke width slider alongside the tools", () => {
+    renderWhiteboard();
+    // The color palette exposes one button per color.
+    const colorButtons = screen.getAllByTestId(
+      "classroom.whiteboard.color_button",
+    );
+    expect(colorButtons.length).toBeGreaterThan(0);
+    // The stroke width slider is present.
+    expect(
+      screen.getByTestId("classroom.whiteboard.width_slider"),
+    ).toBeInTheDocument();
+  });
+
+  it("offers rectangle, circle, line, and arrow shape tools", () => {
+    renderWhiteboard();
+    expect(
+      screen.getByRole("button", { name: "rect tool" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "circle tool" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "line tool" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "arrow tool" }),
+    ).toBeInTheDocument();
+  });
+
+  it("selects a shape tool and marks it pressed", async () => {
+    renderWhiteboard();
+    const rect = screen.getByRole("button", { name: "rect tool" });
+    expect(rect).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(rect);
+    expect(rect).toHaveAttribute("aria-pressed", "true");
+  });
 });

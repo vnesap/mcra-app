@@ -8,8 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Backend, ClassroomDuration } from "@/backend";
-import { useNavigate } from "@tanstack/react-router";
+import { useCreateClassroom } from "@/hooks/useClassrooms";
+import { ClassroomDuration } from "@/lib/types";
 import { CalendarPlus, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -26,39 +26,23 @@ export function SchedulerPanel() {
   const [duration, setDuration] = useState<ClassroomDuration>(
     ClassroomDuration.min30,
   );
-  const [isPending, setIsPending] = useState(false);
-  const navigate = useNavigate();
-  const backend = new Backend();
+  const createClassroom = useCreateClassroom();
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = title.trim();
     if (!trimmed) return;
-
-    try {
-      setIsPending(true);
-      
-      // Calls your updated Supabase connector from backend.ts
-      const newRoom = await backend.createClassroom(trimmed, duration);
-      
-      if (newRoom && newRoom.roomCode) {
-        toast.success("Classroom created successfully!");
-        setTitle("");
-        
-        // Use your TanStack router configuration to redirect natively to the join screen
-        void navigate({
-          to: "/join/$roomCode",
-          params: { roomCode: newRoom.roomCode.toString() }
-        });
-      } else {
-        throw new Error("Database returned an empty routing reference.");
-      }
-    } catch (error) {
-      console.error("Scheduler failed to route:", error);
-      toast.error("Could not schedule the classroom. Verify your keys in env.json.");
-    } finally {
-      setIsPending(false);
-    }
+    setTitle("");
+    createClassroom.mutate(
+      { title: trimmed, duration },
+      {
+        onSuccess: () => toast.success("Classroom scheduled!"),
+        onError: () => {
+          setTitle((current) => (current === "" ? trimmed : current));
+          toast.error("Could not schedule the classroom");
+        },
+      },
+    );
   }
 
   return (
@@ -118,16 +102,16 @@ export function SchedulerPanel() {
 
         <Button
           type="submit"
-          disabled={title.trim() === "" || isPending}
+          disabled={title.trim() === "" || createClassroom.isPending}
           className="h-9"
           data-ocid="lobby.create_button"
         >
-          {isPending ? (
+          {createClassroom.isPending ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <CalendarPlus className="size-4" />
           )}
-          {isPending ? "Scheduling…" : "Create room"}
+          {createClassroom.isPending ? "Scheduling…" : "Create room"}
         </Button>
       </div>
     </form>

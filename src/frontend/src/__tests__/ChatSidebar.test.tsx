@@ -123,4 +123,43 @@ describe("ChatSidebar", () => {
     expect(screen.getByText("Welcome!")).toBeInTheDocument();
     expect(screen.getByText("Ms. Rivera")).toBeInTheDocument();
   });
+
+  it("places the reaction grid and stickers below the composer and message list", () => {
+    useChatMessagesMock.mockReturnValue({ data: [] });
+    useSendChatMessageMock.mockReturnValue({ mutate: vi.fn() });
+    useSendReactionMock.mockReturnValue({ mutate: vi.fn() });
+
+    renderChat();
+    const scroll = screen.getByTestId("classroom.chat.scroll");
+    const composer = screen.getByTestId("classroom.chat.input");
+    const reaction = screen.getByRole("button", { name: "Send reaction 👍" });
+    const sticker = screen.getByRole("button", { name: "Great job!" });
+
+    // The message list comes first, then the composer, then reactions/stickers.
+    expect(
+      scroll.compareDocumentPosition(composer) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      composer.compareDocumentPosition(reaction) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      reaction.compareDocumentPosition(sticker) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders the composer input taller than the reaction buttons", () => {
+    useChatMessagesMock.mockReturnValue({ data: [] });
+    useSendChatMessageMock.mockReturnValue({ mutate: vi.fn() });
+    useSendReactionMock.mockReturnValue({ mutate: vi.fn() });
+
+    renderChat();
+    const composer = screen.getByTestId("classroom.chat.input");
+    const reaction = screen.getByRole("button", { name: "Send reaction 👍" });
+    // The composer is h-11 (2.75rem) while reaction buttons are size-8 (2rem).
+    expect(composer.className).toContain("h-11");
+    expect(reaction.className).toContain("size-8");
+  });
 });

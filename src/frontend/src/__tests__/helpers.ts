@@ -1,3 +1,4 @@
+import { ClassroomDuration } from "@/lib/types";
 import { vi } from "vitest";
 
 /**
@@ -28,6 +29,9 @@ export interface MockActor {
   endSession: ReturnType<typeof vi.fn>;
   listWhiteboardActions: ReturnType<typeof vi.fn>;
   broadcastWhiteboardAction: ReturnType<typeof vi.fn>;
+  login: ReturnType<typeof vi.fn>;
+  getCurrentSession: ReturnType<typeof vi.fn>;
+  logout: ReturnType<typeof vi.fn>;
 }
 
 /** Build a mock actor with every method stubbed to a vi.fn(). */
@@ -55,6 +59,9 @@ export function createMockActor(): MockActor {
     endSession: vi.fn(),
     listWhiteboardActions: vi.fn(),
     broadcastWhiteboardAction: vi.fn(),
+    login: vi.fn(),
+    getCurrentSession: vi.fn(),
+    logout: vi.fn(),
   };
 }
 
@@ -64,7 +71,7 @@ export function sampleClassroom(overrides: Record<string, unknown> = {}) {
     id: 1n,
     title: "Adding Up Fun",
     onlineCount: 0n,
-    duration: { min30: null },
+    duration: ClassroomDuration.min30,
     createdAt: 1_700_000_000_000_000_000n,
     roomCode: "ABC123",
     ...overrides,

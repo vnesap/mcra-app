@@ -16,7 +16,8 @@ import { useDeleteClassroom } from "@/hooks/useClassrooms";
 import { useOnline } from "@/hooks/usePresence";
 import { buildRoomLink } from "@/lib/roomLink";
 import type { ClassroomDuration, ClassroomView } from "@/lib/types";
-import { Clock, Link2, Trash2, User } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Clock, Link2, LogIn, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 
 const SYMBOLS = ["+", "÷", "=", "×", "−", "π"];
@@ -57,6 +58,14 @@ function timestampToDate(ts: bigint): Date | null {
 export function ClassroomRow({ classroom }: { classroom: ClassroomView }) {
   const { data: online = [] } = useOnline(classroom.roomCode);
   const deleteClassroom = useDeleteClassroom();
+  const navigate = useNavigate();
+
+  function handleJoin() {
+    void navigate({
+      to: "/classroom/$roomCode",
+      params: { roomCode: classroom.roomCode },
+    });
+  }
 
   const idx = Number(classroom.id % BigInt(SYMBOLS.length));
   const symbol = SYMBOLS[idx];
@@ -156,6 +165,17 @@ export function ClassroomRow({ classroom }: { classroom: ClassroomView }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleJoin}
+            className="bg-gradient-sunny font-bold text-foreground shadow-subtle hover:opacity-90"
+            data-ocid="lobby.join_button"
+          >
+            <LogIn className="size-4" />
+            Join
+          </Button>
+
           <Button
             type="button"
             size="sm"

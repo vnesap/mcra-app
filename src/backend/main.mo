@@ -14,9 +14,11 @@ import BoolValue "mo:caffeineai-oql/BoolValue";
 import FloatValue "mo:caffeineai-oql/FloatValue";
 import ClassroomsApi "mixins/classrooms-api";
 import CollaborationApi "mixins/collaboration-api";
+import AuthApi "mixins/auth-api";
 import ApiDocMixin "mixins/api-doc";
 import Types "types/collaboration";
 import ClassroomsTypes "types/classrooms";
+import AuthTypes "types/auth";
 
 actor {
   let accessControlState : AccessControl.AccessControlState;
@@ -34,6 +36,10 @@ actor {
   let nextMessageId : { var next : Nat };
   let nextActionId : { var next : Nat };
   let nextReactionId : { var next : Nat };
+
+  let accounts : List.List<AuthTypes.Account>;
+  let sessions : List.List<AuthTypes.Session>;
+  let nextSessionId : { var next : Nat };
 
   include MixinAuthorization(accessControlState, null);
 
@@ -92,6 +98,31 @@ actor {
         .sample({ roomId = 0; ended = false })
         .controllerOnly()
         .build(),
+      // Auth tables. Both are sensitive: account passwords and session tokens
+      // are never exposed as columns, and the tables are controller-only
+      // (restricted) so no end user reads them directly.
+      accounts.toEntityManual("account", "Account", "email")
+        .sample({ email = ""; password = ""; name = ""; role = #teacher })
+        .payload("email", func a = a.email)
+        .payload("name", func a = a.name)
+        .payload("role", func a = switch (a.role) {
+          case (#teacher) "teacher";
+          case (#student) "student";
+        })
+        .controllerOnly()
+        .build(),
+      sessions.toEntityManual("session", "Session", "token")
+        .sample({ token = ""; email = ""; name = ""; role = #teacher; createdAt = 0 })
+        .payload("token", func s = s.token)
+        .payload("email", func s = s.email)
+        .payload("name", func s = s.name)
+        .payload("role", func s = switch (s.role) {
+          case (#teacher) "teacher";
+          case (#student) "student";
+        })
+        .payload("createdAt", func s = s.createdAt)
+        .controllerOnly()
+        .build(),
     ];
   });
 
@@ -108,6 +139,8 @@ actor {
     nextActionId,
     nextReactionId,
   );
+
+  include AuthApi(accounts, sessions, nextSessionId);
 
   include ApiDocMixin();
 };

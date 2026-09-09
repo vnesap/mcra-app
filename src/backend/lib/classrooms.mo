@@ -4,9 +4,6 @@ import Principal "mo:core/Principal";
 import Types "../types/classrooms";
 
 module {
-  // Nanoseconds in one day, used to compare classroom creation dates by day.
-  let NANOS_PER_DAY : Int = 86400000000000;
-
   // Build a new Classroom record from its parts and append it to the list.
   public func createClassroom(
     classrooms : List.List<Types.Classroom>,
@@ -53,7 +50,7 @@ module {
     classrooms.toArray()
       .filter(func c =
         (term == "" or c.title.toLower().contains(#text term))
-        and (switch date { case (?d) sameDay(c.createdAt, d); case null true }))
+        and (switch date { case (?d) c.createdAt == d; case null true }))
       .map(func c = toView(c, onlineCount(presence, c.id)))
   };
 
@@ -152,15 +149,5 @@ module {
       case (?s) s.ended;
       case null false;
     };
-  };
-
-  // The day index (days since epoch) of a timestamp.
-  func dayOf(t : Types.Timestamp) : Int {
-    t / NANOS_PER_DAY
-  };
-
-  // Whether two timestamps fall on the same calendar day.
-  func sameDay(a : Types.Timestamp, b : Types.Timestamp) : Bool {
-    dayOf(a) == dayOf(b)
   };
 };

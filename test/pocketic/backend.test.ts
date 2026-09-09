@@ -44,9 +44,9 @@ it("round-trips a classroom through create/list/search/delete", async () => {
   const byDate = await actor.searchClassrooms("", [created.createdAt + 1_000_000_000n]);
   expect(byDate).toEqual([]);
 
-  // Room link resolves for the created classroom.
+  // Room link resolves to the join path for the created classroom.
   const link = await actor.getRoomLink(created.id);
-  expect(link).toEqual([created.roomCode]);
+  expect(link).toEqual([`/join/${created.roomCode}`]);
 
   // Deleting removes it from the lobby.
   await expect(actor.deleteClassroom(created.id)).resolves.toBe(true);
@@ -114,4 +114,36 @@ it("ends a session and reports it ended", async () => {
   await expect(actor.getSessionEnded(created.roomCode)).resolves.toBe(false);
   await actor.endSession(created.roomCode);
   await expect(actor.getSessionEnded(created.roomCode)).resolves.toBe(true);
+});
+
+it("logs in a seeded account and returns a valid session", async () => {
+  const result = await actor.login("teacher@classroom.app", "teacher123");
+  expect("ok" in result).toBe(true);
+  const session = result.ok;
+  expect(session.email).toBe("teacher@classroom.app");
+  expect(session.name).toBe("Ms. Rivera");
+  expect("teacher" in session.role).toBe(true);
+  expect(session.token.length).toBeGreaterThan(0);
+
+  // The returned token resolves to the same session on refresh.
+  const restored = await actor.getCurrentSession(session.token);
+  expect(restored).toEqual([session]);
+});
+
+it("rejects invalid credentials and does not create a session", async () => {
+  const result = await actor.login("teacher@classroom.app", "wrong-password");
+  expect("invalidCredentials" in result).toBe(true);
+
+  // An unknown email is also rejected.
+  const unknown = await actor.login("nobody@classroom.app", "teacher123");
+  expect("invalidCredentials" in unknown).toBe(true);
+});
+
+it("logs out a session so its token no longer resolves", async () => {
+  const result = await actor.login("student@classroom.app", "student123");
+  expect("ok" in result).toBe(true);
+  const token = result.ok.token;
+
+  await actor.logout(token);
+  await expect(actor.getCurrentSession(token)).resolves.toEqual([]);
 });

@@ -4,6 +4,29 @@ type AccessControlState__424933031 =
     var adminAssigned : Bool;
     userRoles : Map__386906547<Principal, UserRole__563258213>
   };
+type AccessControlState__521626136 =
+  {
+    var adminAssigned : Bool;
+    userRoles : Map__386906547<Principal, UserRole__474860217>
+  };
+type Account__695028677 =
+  {
+    email : Email__499858347;
+    name : Text;
+    password : Password__410361491;
+    role : Role__300349085
+  };
+type Account__864659386 =
+  {email : Text; name : Text; password : Text; role : Role__421055051};
+type ChatMessage__1010379378 =
+  {
+    file : ?FileRef__313133087;
+    id : Nat;
+    isSystem : Bool;
+    senderName : Text;
+    text : Text;
+    timestamp : Int
+  };
 type ChatMessage__1014886531 =
   {
     file : ?FileRef__533532219;
@@ -22,9 +45,19 @@ type ChatMessage__418284294 =
     text : Text;
     timestamp : Int
   };
+type ClassroomDuration__444542031 = {#hour1; #hour1half; #min30};
 type ClassroomDuration__759379454 = {#hour1; #hour1half; #min30};
 type ClassroomDuration__96585883 = {#hour1; #hour1half; #min30};
 type ClassroomId__22887800 = Nat;
+type Classroom__24295328 =
+  {
+    createdAt : Int;
+    duration : ClassroomDuration__444542031;
+    id : Nat;
+    owner : Principal;
+    roomCode : Text;
+    title : Text
+  };
 type Classroom__592186620 =
   {
     createdAt : Timestamp__187159999;
@@ -44,7 +77,10 @@ type Classroom__964089065 =
     title : Text
   };
 type Data__265875254<K, V> = {var count : Nat__58649523; kvs : [var ?(K, V)]};
+type Email__499858347 = Text;
 type FileRef__242138157 =
+  {mimeType : Text; name : Text; size : Nat; url : Text};
+type FileRef__313133087 =
   {mimeType : Text; name : Text; size : Nat; url : Text};
 type FileRef__533532219 =
   {mimeType : Text; name : Text; size : Nat; url : Text};
@@ -81,9 +117,48 @@ type NewActor__540605288 =
     sticker : {var state : StickerState__139188950};
     timer : {var state : TimerState__374998893}
   };
+type NewActor__949544773 =
+  {
+    accessControlState : AccessControlState__521626136;
+    accounts : List__89170296<Account__864659386>;
+    actions : List__89170296<WhiteboardAction__908014849>;
+    classrooms : List__89170296<Classroom__24295328>;
+    messages : List__89170296<ChatMessage__1010379378>;
+    nextActionId : {var next : Nat};
+    nextMessageId : {var next : Nat};
+    nextReactionId : {var next : Nat};
+    nextSessionId : {var next : Nat};
+    presence : List__89170296<Presence__1051277812>;
+    reactions : List__89170296<ReactionEvent__969587251>;
+    sessionEnded : List__89170296<SessionEnded__1044603438>;
+    sessions : List__89170296<Session__868256636>;
+    spotlight : {var state : SpotlightState__404560250};
+    state : {var nextClassroomId : Nat};
+    sticker : {var state : StickerState__204599888};
+    timer : {var state : TimerState__798977501}
+  };
 type Node__430031793<K, V> =
   {#internal : Internal__161573640<K, V>; #leaf : Leaf__1045638083<K, V>};
+type OldActor__1035076932 =
+  {
+    accessControlState : AccessControlState__521626136;
+    actions : List__89170296<WhiteboardAction__908014849>;
+    classrooms : List__89170296<Classroom__24295328>;
+    messages : List__89170296<ChatMessage__1010379378>;
+    nextActionId : {var next : Nat};
+    nextMessageId : {var next : Nat};
+    nextReactionId : {var next : Nat};
+    presence : List__89170296<Presence__1051277812>;
+    reactions : List__89170296<ReactionEvent__969587251>;
+    sessionEnded : List__89170296<SessionEnded__1044603438>;
+    spotlight : {var state : SpotlightState__404560250};
+    state : {var nextClassroomId : Nat};
+    sticker : {var state : StickerState__204599888};
+    timer : {var state : TimerState__798977501}
+  };
 type OldActor__842609836 = {};
+type Password__410361491 = Text;
+type Presence__1051277812 = {online : [Principal]; roomId : Nat};
 type Presence__1053983103 =
   {online : [Principal]; roomId : ClassroomId__22887800};
 type Presence__576127188 = {online : [Principal]; roomId : Nat};
@@ -91,17 +166,44 @@ type ReactionEvent__1006462369 =
   {id : Nat; senderName : Text; symbol : Text; timestamp : Int};
 type ReactionEvent__515999194 =
   {id : Nat; senderName : Text; symbol : Text; timestamp : Int};
+type ReactionEvent__969587251 =
+  {id : Nat; senderName : Text; symbol : Text; timestamp : Int};
+type Role__300349085 = {#student; #teacher};
+type Role__421055051 = {#student; #teacher};
+type SessionEnded__1044603438 = {ended : Bool; roomId : Nat};
 type SessionEnded__640585480 = {ended : Bool; roomId : ClassroomId__22887800};
 type SessionEnded__728774975 = {ended : Bool; roomId : Nat};
+type Session__71599859 =
+  {
+    createdAt : Timestamp__301639476;
+    email : Email__499858347;
+    name : Text;
+    role : Role__300349085;
+    token : Text
+  };
+type Session__868256636 =
+  {
+    createdAt : Int;
+    email : Text;
+    name : Text;
+    role : Role__421055051;
+    token : Text
+  };
+type SpotlightState__404560250 = {active : Bool; studentName : Text};
 type SpotlightState__471753646 = {active : Bool; studentName : Text};
 type SpotlightState__506911075 = {active : Bool; studentName : Text};
 type StickerState__139188950 = {studentName : Text; symbol : Text};
 type StickerState__161860043 = {studentName : Text; symbol : Text};
+type StickerState__204599888 = {studentName : Text; symbol : Text};
 type TimerState__374998893 =
   {durationSec : Nat; running : Bool; startTime : Int};
 type TimerState__617983695 =
   {durationSec : Nat; running : Bool; startTime : Int};
+type TimerState__798977501 =
+  {durationSec : Nat; running : Bool; startTime : Int};
 type Timestamp__187159999 = Int;
+type Timestamp__301639476 = Int;
+type UserRole__474860217 = {#admin; #guest; #user};
 type UserRole__563258213 = {#admin; #guest; #user};
 type UserRole__91647283 = {#admin; #guest; #user};
 type WhiteboardAction__233475514 =
@@ -124,14 +226,31 @@ type WhiteboardAction__368341157 =
     timestamp : Int;
     width : Float
   };
+type WhiteboardAction__908014849 =
+  {
+    color : Text;
+    id : Nat;
+    kind : Text;
+    points : [Float];
+    senderName : Text;
+    timestamp : Int;
+    width : Float
+  };
 {
-  "20260908_000000" : (old : OldActor__842609836) -> NewActor__540605288
+  "20260908_000000" : (old : OldActor__842609836) -> NewActor__540605288;
+  "20260908_010000" : (old : OldActor__1035076932) -> NewActor__949544773
 }
 actor  {
   stable accessControlState :
     {
       var adminAssigned : Bool;
       userRoles : Map__386906547<Principal, UserRole__91647283>
+    };
+  stable accounts :
+    {
+      var blockIndex : Nat__58649523;
+      var blocks : [var [var ?Account__695028677]];
+      var elementIndex : Nat__58649523
     };
   stable actions :
     {
@@ -154,6 +273,7 @@ actor  {
   stable nextActionId : {var next : Nat};
   stable nextMessageId : {var next : Nat};
   stable nextReactionId : {var next : Nat};
+  stable nextSessionId : {var next : Nat};
   stable presence :
     {
       var blockIndex : Nat__58649523;
@@ -170,6 +290,12 @@ actor  {
     {
       var blockIndex : Nat__58649523;
       var blocks : [var [var ?SessionEnded__640585480]];
+      var elementIndex : Nat__58649523
+    };
+  stable sessions :
+    {
+      var blockIndex : Nat__58649523;
+      var blocks : [var [var ?Session__71599859]];
       var elementIndex : Nat__58649523
     };
   stable spotlight : {var state : SpotlightState__506911075};

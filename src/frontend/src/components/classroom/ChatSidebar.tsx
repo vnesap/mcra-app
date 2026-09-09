@@ -230,6 +230,84 @@ export function ChatSidebar({ className, onClose }: ChatSidebarProps) {
         </div>
       </div>
 
+      {/* Composer — primary action, taller than the reaction bar */}
+      <div className="shrink-0 border-t p-3 pb-2">
+        {pendingFile ? (
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-secondary px-2 py-1.5 text-xs">
+            <FileText className="size-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{pendingFile.name}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              onClick={() => setPendingFile(null)}
+              aria-label="Remove file"
+              data-ocid="classroom.chat.remove_file_button"
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+        ) : null}
+
+        {error ? (
+          <p
+            className="mb-2 text-xs font-medium text-destructive"
+            data-ocid="classroom.chat.error_state"
+          >
+            {error}
+          </p>
+        ) : null}
+
+        <div className="flex items-center gap-2">
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              className="hidden"
+              onChange={handlePickFile}
+              data-ocid="classroom.chat.upload_input"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-11"
+              aria-label="Attach a file"
+              data-ocid="classroom.chat.upload_button"
+            >
+              <Paperclip className="size-5" />
+            </Button>
+          </label>
+          <Input
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              if (error) setError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void handleSend();
+              }
+            }}
+            placeholder="Type a message…"
+            className="h-11 flex-1 rounded-full text-sm"
+            data-ocid="classroom.chat.input"
+          />
+          <Button
+            type="button"
+            size="icon"
+            className="size-11 shrink-0 rounded-full"
+            disabled={!canSend || uploading}
+            onClick={() => void handleSend()}
+            aria-label="Send message"
+            data-ocid="classroom.chat.send_button"
+          >
+            <Send className="size-5" />
+          </Button>
+        </div>
+      </div>
+
       {/* Reaction emoji grid */}
       <div className="shrink-0 border-t p-2">
         <p className="mb-1.5 px-1 text-[11px] font-semibold text-muted-foreground">
@@ -276,84 +354,6 @@ export function ChatSidebar({ className, onClose }: ChatSidebarProps) {
               {sticker}
             </Button>
           ))}
-        </div>
-      </div>
-
-      {/* Composer */}
-      <div className="shrink-0 border-t p-3">
-        {pendingFile ? (
-          <div className="mb-2 flex items-center gap-2 rounded-lg bg-secondary px-2 py-1.5 text-xs">
-            <FileText className="size-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{pendingFile.name}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              onClick={() => setPendingFile(null)}
-              aria-label="Remove file"
-              data-ocid="classroom.chat.remove_file_button"
-            >
-              <X className="size-3.5" />
-            </Button>
-          </div>
-        ) : null}
-
-        {error ? (
-          <p
-            className="mb-2 text-xs font-medium text-destructive"
-            data-ocid="classroom.chat.error_state"
-          >
-            {error}
-          </p>
-        ) : null}
-
-        <div className="flex items-center gap-2">
-          <label className="cursor-pointer">
-            <input
-              type="file"
-              className="hidden"
-              onChange={handlePickFile}
-              data-ocid="classroom.chat.upload_input"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-9"
-              aria-label="Attach a file"
-              data-ocid="classroom.chat.upload_button"
-            >
-              <Paperclip className="size-4" />
-            </Button>
-          </label>
-          <Input
-            value={draft}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              if (error) setError(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void handleSend();
-              }
-            }}
-            placeholder="Type a message…"
-            className="h-9 flex-1 rounded-full"
-            data-ocid="classroom.chat.input"
-          />
-          <Button
-            type="button"
-            size="icon"
-            className="size-9 shrink-0 rounded-full"
-            disabled={!canSend || uploading}
-            onClick={() => void handleSend()}
-            aria-label="Send message"
-            data-ocid="classroom.chat.send_button"
-          >
-            <Send className="size-4" />
-          </Button>
         </div>
       </div>
     </aside>

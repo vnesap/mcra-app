@@ -33,9 +33,10 @@ function remainingSeconds(
 }
 
 /**
- * Countdown timer configured by the teacher and synced to all users. Runs
- * silently and hidden until the final 3 seconds flash into view, then plays a
- * text-to-speech "Time is up!" alert.
+ * Countdown timer configured by the teacher and synced to all users. Displays
+ * as a small compact overlay that hovers over the screen while running,
+ * showing the remaining time, then plays a text-to-speech "Time is up!" alert
+ * once when it reaches zero.
  */
 export function TimerOverlay({ open, isTeacher }: TimerOverlayProps) {
   const { data: timer } = useTimer();
@@ -51,7 +52,6 @@ export function TimerOverlay({ open, isTeacher }: TimerOverlayProps) {
     : 0;
 
   const isRunning = timer?.running ?? false;
-  const inFinalCountdown = isRunning && remaining > 0 && remaining <= 3;
 
   // Reset the TTS guard when a new timer starts.
   useEffect(() => {
@@ -93,8 +93,8 @@ export function TimerOverlay({ open, isTeacher }: TimerOverlayProps) {
               <TimerIcon className="size-5" /> Set lesson timer
             </DialogTitle>
             <DialogDescription>
-              Choose how long the countdown should run. It stays hidden until
-              the final 3 seconds.
+              Choose how long the countdown should run. It appears as a small
+              overlay hovering over the screen while it counts down.
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
@@ -143,25 +143,37 @@ export function TimerOverlay({ open, isTeacher }: TimerOverlayProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Floating countdown — only visible in the final 3 seconds */}
-      {inFinalCountdown ? (
+      {/* Compact hover overlay — visible while the timer is running */}
+      {isRunning ? (
         <div
-          className="absolute top-1/2 left-1/2 z-40 -translate-x-1/2 -translate-y-1/2 animate-pulse"
+          className="absolute top-4 right-4 z-40"
           data-ocid="classroom.timer.countdown"
         >
-          <div className="flex size-40 flex-col items-center justify-center rounded-full border-4 border-destructive bg-destructive/10 shadow-xl backdrop-blur-sm">
-            <span className="font-mono text-6xl font-bold text-destructive">
+          <div
+            className={`flex items-center gap-2 rounded-full border bg-card/90 px-4 py-2 shadow-subtle backdrop-blur-sm ${
+              remaining <= 3
+                ? "border-destructive bg-destructive/10 animate-pulse"
+                : "border-border"
+            }`}
+          >
+            <TimerIcon
+              className={`size-4 ${remaining <= 3 ? "text-destructive" : "text-primary"}`}
+            />
+            <span
+              className={`font-mono text-lg font-bold tabular-nums ${
+                remaining <= 3 ? "text-destructive" : "text-foreground"
+              }`}
+            >
               {ss}
             </span>
-            <span className="text-sm font-semibold text-destructive">
-              seconds left!
+            <span className="text-xs font-semibold text-muted-foreground">
+              {remaining <= 3 ? "seconds left!" : "remaining"}
             </span>
           </div>
         </div>
       ) : null}
 
-      {/* Teacher-only reset control while running — the countdown itself stays
-          hidden until the final 3 seconds */}
+      {/* Teacher-only reset control while running */}
       {isRunning && remaining > 3 && isTeacher ? (
         <Button
           type="button"

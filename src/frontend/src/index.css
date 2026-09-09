@@ -74,6 +74,11 @@
       oklch(0.79 0.17 85),
       oklch(0.78 0.16 45)
     );
+    --gradient-auth: linear-gradient(
+      160deg,
+      oklch(0.985 0.012 90),
+      oklch(0.95 0.022 280)
+    );
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -131,6 +136,11 @@
       oklch(0.78 0.16 85),
       oklch(0.76 0.15 45)
     );
+    --gradient-auth: linear-gradient(
+      160deg,
+      oklch(0.2 0.022 90),
+      oklch(0.24 0.03 280)
+    );
   }
 
   * {
@@ -150,6 +160,9 @@
   }
   .bg-gradient-sunny {
     background-image: var(--gradient-sunny);
+  }
+  .bg-gradient-auth {
+    background-image: var(--gradient-auth);
   }
   .text-gradient-primary {
     background-image: var(--gradient-primary);

@@ -32,8 +32,3 @@ export interface SessionUser {
   role: SessionRole;
   name: string;
 }
-
-/** Route params shared by the room entry gateway and live classroom. */
-export interface RoomParams {
-  roomCode: string;
-}
